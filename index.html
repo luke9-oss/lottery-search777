@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lottery Smart Search Pro (Secure)</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Supabase Official JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #333333;
+      --border-color: #cccccc;
+      --table-bg: #fafafa;
+      --header-bg: #eeeeee;
+      --section-bg: #f5f5f5;
+    }
+
+    body.dark-theme {
+      --bg-color: #121212;
+      --text-color: #e0e0e0;
+      --border-color: #333333;
+      --table-bg: #1e1e1e;
+      --header-bg: #2d2d2d;
+      --section-bg: #1a1a1a;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 12px;
+      padding-bottom: 50px;
+    }
+
+    h2, h3 { text-align: center; margin-bottom: 10px; }
+
+    .top-controls { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    input, select { padding: 8px; background: var(--table-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; margin: 4px; }
+    .search-section, .controls-section { background-color: var(--section-bg); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border-color); }
+    .search-section input { width: 95%; max-width: 400px; display: block; margin: 0 auto 10px; }
+    .search-buttons { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+    .help-panel { background: var(--section-bg); border: 2px dashed #009688; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+    .help-panel ul { padding-left: 20px; line-height: 1.6; }
+
+    .scroll-container { overflow-x: auto; width: 100%; border: 1px solid var(--border-color); }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 11px; background-color: var(--table-bg); }
+    th, td { border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 6px; text-align: center; min-width: 45px; }
+
+    .sticky-col {
+      position: sticky;
+      left: 0;
+      background-color: #1565c0 !important;
+      color: #ffffff !important;
+      font-weight: bold;
+      z-index: 5;
+    }
+    th {
+      background-color: #2e7d32 !important;
+      color: #ffffff !important;
+    }
+
+    .multi-highlight { font-weight: bold; color: #000 !important; }
+    .footer { text-align: center; margin-top: 30px; font-size: 13px; font-weight: bold; color: #888; }
+
+    #loginScreen {
+      max-width: 350px;
+      margin: 100px auto;
+      background: var(--section-bg);
+      padding: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    #loginScreen input { width: 90%; margin-bottom: 15px; }
+    .error { color: #f44336; font-size: 13px; margin-top: 10px; word-break: break-all; }
+
+    .print-only { display: none; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: white !important; color: black !important; margin: 0; padding: 0; }
+      .print-page { page-break-after: always; visibility: visible; margin-top: 20px; }
+      table { width: 100% !important; font-size: 14px !important; border-collapse: collapse; }
+      th, td { border: 1px solid #000 !important; padding: 8px !important; color: black !important; background: transparent !important; text-align: center; font-weight: bold; }
+      th { background-color: #eaeaea !important; }
+      @page { size: landscape; margin: 1cm; }
+    }
+  </style>
+</head>
+<body class="dark-theme">
+
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <h2>🔐 အသုံးပြုခွင့် (Subscription)</h2>
+    <p style="font-size: 12px; color: #888; margin-bottom: 15px;">
+      KPay ဖြင့် ငွေလွှဲပြေစာ ပို့ပေးပြီးနောက် ရရှိသော Access Key ကို ထည့်ပါ<br>
+      <span style="color: #009688;">ဆက်သွယ်ရန် Telegram: @mgye2030</span>
+    </p>
+    <input type="text" id="accessKey" placeholder="Access Key ထည့်ရန်...">
+    <button onclick="verifyKeyFromSupabase()" style="background-color: #28a745; color: white; width: 100%;" id="loginBtn">ဝင်မည်</button>
+    <div id="errorMsg" class="error"></div>
+  </div>
+
+  <!-- Main App (Hidden until login) -->
+  <div id="mainApp" style="display: none;">
+    <div class="top-controls no-print">
+      <button onclick="logout()" style="background-color: #dc3545; color: white;">🚪 အကောင့်ထွက်ရန်</button>
+      <button onclick="toggleHelp()" id="helpToggleBtn" style="background-color: #009688; color: white;">📖 အသုံးပြုနည်းလမ်းညွှန်</button>
+      <button onclick="toggleTheme()" id="themeBtn">☀️ Light Mode</button>
+      <button onclick="toggleLang()" id="langBtn">🇲🇲 EN</button>
+      <button onclick="printSplitPDF()" id="printBtn" style="background-color: #e91e63; color: white;">🖨️ Print Split PDF</button>
+    </div>
+
+    <div id="helpPanel" class="help-panel no-print" style="display: none;">
+      <h4 id="helpTitle">💡 ရှာဖွေနည်းလမ်းညွှန် (How to Search)</h4>
+      <ul id="helpList">
+        <li><b>၃ လုံးတိုက်ရိုက်:</b> ဂဏန်း ၃ လုံးရိုက်ရှာပါ (ဥပမာ - <mark>123</mark>)</li>
+        <li><b>T (ထိပ်စီး):</b> ထိပ်ဂဏန်းတူရှာရန် (ဥပမာ - <mark>T1</mark>)</li>
+        <li><b>L (လယ်ဂဏန်း):</b> အလယ်ဂဏန်းတူရှာရန် (ဥပမာ - <mark>L5</mark>)</li>
+        <li><b>P (ပိတ်ဂဏန်း):</b> နောက်ပိတ်ဂဏန်းတူရှာရန် (ဥပမာ - <mark>P6</mark>)</li>
+        <li><b>B (ဘရိတ်):</b> ၃ လုံးပေါင်းခြင်း နောက်ဆုံးဂဏန်း (ဥပမာ - <mark>B2</mark>)</li>
+        <li><b>SH (ရှေ့ပေါင်း):</b> ရှေ့ ၂ လုံးပေါင်းခြင်း (ဥပမာ - <mark>SH1</mark>)</li>
+        <li><b>KH (ခွပေါင်း):</b> ထိပ်နှင့် နောက်ပိတ်ပေါင်းခြင်း (ဥပမာ - <mark>KH5</mark>)</li>
+        <li><b>N (နောက် ၂ လုံးပေါင်းခြင်း):</b> နောက် ၂ လုံးပေါင်းခြင်း (ဥပမာ - <mark>N1</mark>)</li>
+        <li><b>ပါဝါ/နਕ္ခတ်တွဲရှာ:</b> ပါဝါ သို့မဟုတ် နਕ္ခတ်ဂဏန်းများဖြင့် တွဲရှာနိုင်သည်</li>
+        <li><b>ညီကိုတွဲရှာ:</b> ညီကိုဂဏန်းအတွဲများ ရှာနိုင်သည်</li>
+        <li><b>ရိုးရိုးတွဲလုံးရှာ:</b> ဂဏန်းအတွဲများ ရှာနိုင်သည် (ဥပမာ - 13, 36, 37, 39, 30)</li>
+        <li><b>ဂဏန်းတစ်လုံးထဲရှာ:</b> မိမိလိုချင်သော ဂဏန်းတစ်လုံးတည်းကိုလည်း ရှာနိုင်သည်</li>
+      </ul>
+    </div>
+
+    <h2 id="mainTitle">ထီဂဏန်း Smart Search စနစ်</h2>
+    <div class="search-section no-print">
+      <div class="search-buttons" style="margin-bottom: 10px;">
+        <button id="modeNormal" onclick="changeMode('normal')" style="background-color: #4CAF50; color:white;">ရိုးရိုးရှာ</button>
+        <button id="modePattern" onclick="changeMode('pattern')" style="background-color: #555; color:white;">ဖြစ်စဉ်တူရှာ</button>
+      </div>
+
+      <input type="text" id="search-bar" placeholder="ဂဏန်းရိုက်ရှာပါ..." oninput="handleSearch()">
+      
+      <div class="search-buttons">
+        <button onclick="addMultiSearch()" id="addMultiBtn" style="background-color: #2196F3; color:white;">Add to Multi-Search</button>
+        <button onclick="clearMultiSearch()" id="clearMultiBtn" style="background-color: #f44336; color:white;">Clear Multi-Search</button>
+      </div>
+      <p id="countDisplay"></p>
+    </div>
+
+    <div class="controls-section no-print">
+      <h3 id="updateTitle">ဂဏန်းအသစ်ထည့်ရန် / ပြင်ရန်</h3>
+      <select id="rowSelect"></select>
+      <input type="number" id="yearInput" placeholder="ခုနှစ် (1969-2026)">
+      <input type="text" id="numberInput" placeholder="၃ လုံးဂဏန်း">
+      <button onclick="updateData()" id="updateBtn">Add / Update</button>
+      <button onclick="addNewYear()" id="addYearBtn" style="background-color: #4CAF50; color:white;">Add New Year (+1 Year)</button>
+    </div>
+
+    <div class="scroll-container no-print">
+      <table id="lotteryTable">
+        <thead>
+          <tr id="tableHeader"><th class="sticky-col">Row</th></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="print-container" class="print-only"></div>
+
+    <div class="footer no-print">
+      Developed by Mg Ye (Telegram: @mgye2030)<br>
+      Built with AI Assistance
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://xqijfcjdrcajzmesdvtc.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxaWpmY2pkcmNhanptZXNkdnRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2MjcyNDAsImV4cCI6MjEwNzIwMzI0MH0.-TBkGOaBb4bJD_talIcMRiecVaIv5aY21Q0BXkOiWvk";
+
+    const { createClient } = supabase;
+    const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function getDeviceID() {
+      let devId = localStorage.getItem("app_device_id");
+      if (!devId) {
+        devId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem("app_device_id", devId);
+      }
+      return devId;
+    }
+
+    async function verifyKeyFromSupabase() {
+      const inputKey = document.getElementById("accessKey").value.trim();
+      const errorMsg = document.getElementById("errorMsg");
+      const loginBtn = document.getElementById("loginBtn");
+
+      errorMsg.innerText = "";
+      if (!inputKey) {
+        errorMsg.innerText = "ကျေးဇူးပြု၍ Access Key ထည့်ပါ။";
+        return;
+      }
+
+      loginBtn.innerText = "စစ်ဆေးနေသည်...";
+      loginBtn.disabled = true;
+
+      try {
+        const { data, error } = await _supabase
+          .from('subscriptions')
+          .select('*')
+          .eq('access_key', inputKey);
+
+        loginBtn.innerText = "ဝင်မည်";
+        loginBtn.disabled = false;
+
+        if (error) {
+          errorMsg.innerText = "Supabase Error: " + error.message;
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          errorMsg.innerText = "ထည့်သွင်းထားသော Key မှားယွင်းနေပါသည်။";
+          return;
+        }
+
+        const keyInfo = data[0];
+        const expiryDate = new Date(keyInfo.expiry_date);
+        const today = new Date();
+
+        if (today > expiryDate) {
+          errorMsg.innerText = "သင့် Key ၏ သက်တမ်း ကုန်ဆုံးသွားပါပြီ။";
+          return;
+        }
+
+        const currentDevice = getDeviceID();
+
+        // 1-Device Lock Check via Supabase Database
+        if (keyInfo.device_id && keyInfo.device_id !== currentDevice) {
+          errorMsg.innerText = "ဤ Key ကို အခြားဖုန်းတွင် အသုံးပြုပြီးဖြစ်ပါသည်။";
+          return;
+        }
+
+        if (!keyInfo.device_id) {
+          const { error: updateError } = await _supabase
+            .from('subscriptions')
+            .update({ device_id: currentDevice })
+            .eq('access_key', inputKey);
+
+          if (updateError) {
+            errorMsg.innerText = "Device ID သိမ်းဆည်းရာတွင် အမှားဖြစ်သွားပါသည်: " + updateError.message;
+            return;
+          }
+        }
+
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("userKey", inputKey);
+        showApp();
+
+      } catch (err) {
+        loginBtn.innerText = "ဝင်မည်";
+        loginBtn.disabled = false;
+        errorMsg.innerText = "ချိတ်ဆက်မှု အမှား: " + err.message;
+      }
+    }
+
+    function showApp() {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("mainApp").style.display = "block";
+      renderTable();
+    }
+
+    function logout() {
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userKey");
+      location.reload();
+    }
+
+    window.onload = async function() {
+      if (localStorage.getItem("isLoggedIn") === "true") {
+        const savedKey = localStorage.getItem("userKey");
+        if (savedKey) {
+          try {
+            const { data } = await _supabase
+              .from('subscriptions')
+              .select('*')
+              .eq('access_key', savedKey);
+
+            const currentDevice = getDeviceID();
+            if (data && data.length > 0) {
+              const keyInfo = data[0];
+              if (new Date() <= new Date(keyInfo.expiry_date) && (!keyInfo.device_id || keyInfo.device_id === currentDevice)) {
+                showApp();
+                return;
+              }
+            }
+            logout();
+          } catch (e) {
+            logout();
+          }
+        }
+      }
+    };
+
+    // --- Original Lottery App Logic ---
+    let currentMaxYear = parseInt(localStorage.getItem('currentMaxYear')) || 2026;
+
+    const defaultData = {
+      "01": ["235","780","815","423","988","726","888","479","038","842","516","912","517","259","961","505","294","731","544","450","907","293","736","428","816","270","388","302","995","195","611","183","016","670","085","342","022","747","739","010","212","577","062","445","981","902","531","371","157","823","079","774","395","159","519","979","779","972"],
+      "02": ["133","579","289","033","660","064","836","735","735","001","984","306","438","083","088","318","078","535","453","245","613","496","496","924","337","685","162","556","792","959","860","213","703","270","370","822","054","729","925","684","533","312","089","605","566","149","537","800","672","853","134","227","307","308","411","063","700","629"],
+      "03": ["002","104","391","362","030","013","326","452","167","889","304","918","924","447","533","550","077","767","333","541","932","892","780","701","455","044","070","455","884","897","231","816","267","853","578","002","422","009","859","054","730","707","746","684","257","245","864","364","116","915","824","403","603","597","417","395","377","563"],
+      "04": ["107","307","140","859","710","743","633","834","349","913","964","338","869","115","209","558","245","973","180","316","226","902","076","524","281","731","454","855","779","364","214","833","537","590","022","483","751","473","425","685","091","227","037","518","241","318","237","686","453","415","650","938","538","905","652","603","894","866"],
+      "05": ["005","105","037","979","279","837","380","946","591","770","051","848","854","093","194","746","467","982","543","066","538","205","641","353","699","336","847","128","474","701","278","311","616","151","062","366","345","177","763","946","812","222","331","064","433","404","151","918","863","559","628","446","422","867","873","626","563","009"],
+      "06": ["455","588","799","459","930","148","556","053","940","611","342","182","838","003","224","730","774","124","187","248","167","251","864","704","558","815","039","765","629","930","957","948","998","543","164","391","753","365","780","653","578","517","931","562","688","866","704","720","785","073","767","×××","270","618","907","481","687","514"],
+      "07": ["332","746","310","490","908","701","838","396","437","427","718","998","962","102","435","602","031","163","607","541","896","890","037","374","018","913","581","584","450","573","094","777","843","630","525","832","327","564","105","800","415","743","988","470","846","406","260","609","729","229","331","×××","787","919","906","598","227","612"],
+      "08": ["759","641","711","295","348","586","096","707","474","744","869","475","607","526","339","022","488","574","032","149","933","868","124","397","508","877","692","351","437","807","483","715","095","664","603","403","467","554","374","011","452","371","136","501","458","297","466","459","656","038","324","×××","272","642","019","116","388","077"],
+      "09": ["867","631","935","648","577","717","390","678","470","151","906","952","319","724","427","540","737","726","842","937","035","272","303","496","983","764","381","140","067","043","818","315","982","714","784","207","134","344","897","231","411","012","417","418","125","523","421","737","891","629","526","095","579","012","903","690","309","387"],
+      "10": ["871","807","649","353","150","921","601","834","406","256","062","829","106","341","632","896","271","379","520","474","087","474","376","191","477","804","615","656","997","088","626","761","311","149","066","144","893","850","393","875","661","874","370","727","489","198","881","825","630","117","461","567","972","196","272","593","352","770"],
+      "11": ["887","353","625","489","150","691","360","715","773","698","848","329","440","993","034","132","893","915","338","685","825","344","632","432","871","355","698","311","146","076","794","696","394","261","872","713","070","935","194","111","456","104","276","373","673","920","742","816","142","131","055","967","861","807","872","504","392",""],
+      "12": ["606","628","216","605","631","910","956","864","365","841","501","175","160","139","611","331","290","577","989","294","621","835","724","968","203","267","901","379","573","123","441","071","987","447","414","471","554","890","151","671","542","239","953","900","905","477","049","460","360","623","647","258","517","417","605","503","246",""],
+      "13": ["343","355","261","000","443","906","662","542","237","897","665","456","805","037","245","635","442","054","641","690","247","178","946","430","061","891","122","687","691","991","416","342","715","264","545","588","452","434","384","374","816","387","556","050","996","728","507","764","327","324","765","285","725","405","530","336","324",""],
+      "14": ["098","596","698","581","388","731","361","426","569","300","544","669","678","784","602","770","220","310","711","405","507","185","541","778","744","057","819","091","272","493","860","540","597","438","098","990","633","654","924","348","986","008","756","590","435","391","677","932","519","602","006","391","261","594","453","041","852",""],
+      "15": ["848","364","882","104","737","056","741","686","440","131","720","245","791","611","879","373","282","578","262","451","182","935","551","607","644","760","333","768","967","784","998","013","135","108","771","921","560","486","207","377","933","097","960","877","327","824","363","004","431","117","476","811","750","583","782","867","865",""],
+      "16": ["632","315","757","146","350","810","055","312","816","031","708","582","805","093","854","662","643","183","794","916","757","380","430","615","096","893","837","136","537","795","344","367","067","200","813","597","933","761","810","993","865","656","533","997","123","763","094","684","224","510","787","997","475","332","478","606","356",""],
+      "17": ["658","270","881","050","068","088","817","967","607","346","641","684","909","463","229","648","985","377","387","997","152","390","449","108","755","931","454","368","514","720","806","251","426","050","589","373","768","948","336","377","912","422","198","143","684","269","148","650","143","760","388","083","935","703","812","662","646",""],
+      "18": ["677","393","556","074","907","353","775","486","531","074","676","585","400","141","863","559","640","653","505","967","624","808","444","578","973","442","092","788","413","844","676","582","154","505","040","866","482","335","667","911","387","372","052","025","882","615","825","102","714","643","197","893","171","669","202","665","978",""],
+      "19": ["242","203","926","433","481","152","745","100","164","805","427","554","956","855","374","140","252","572","730","744","097","303","202","293","764","048","154","019","124","080","227","662","005","641","500","858","072","825","988","277","487","377","756","343","289","409","630","947","494","515","564","051","372","106","446","962","696",""],
+      "20": ["601","719","820","649","832","300","600","705","780","277","085","649","392","313","544","925","520","368","858","357","712","230","285","821","940","779","069","694","201","846","335","182","472","498","438","966","577","957","907","028","140","100","540","694","804","608","211","438","726","840","375","404","037","106","951","044","898",""],
+      "21": ["436","063","553","308","058","273","414","257","679","843","367","972","684","865","558","414","147","635","266","259","263","536","528","682","123","849","422","083","462","744","354","311","706","344","511","622","518","856","481","612","986","993","777","500","925","804","283","383","391","309","223","661","761","789","990","221","145",""],
+      "22": ["025","000","520","083","476","102","816","356","752","808","900","397","738","085","081","743","515","267","568","904","959","944","741","927","638","681","426","528","559","569","281","956","022","422","307","658","551","052","410","434","980","752","147","443","795","449","350","069","005","840","522","994","258","805","097","843","252",""],
+      "23": ["597","946","913","005","805","930","891","382","876","785","242","660","526","948","874","286","920","497","237","984","222","799","436","539","500","040","808","856","240","813","853","676","675","682","947","372","565","977","501","114","141","380","178","524","767","354","255","286","596","564","924","303","235","093","757","863","895",""],
+      "24": ["617","090","606","003","642","989","361","056","784","495","650","371","868","492","320","317","512","348","014","489","268","949","301","150","189","069","686","454","704","147","108","451","367","196","447","858","955","584","411","596","304","112","402","358","072","704","217","712","234","867","541","628","068","196","544","209","706",""]
+    };
+
+    let rawData = JSON.parse(localStorage.getItem('lotteryRawData')) || defaultData;
+
+    const languages = {
+      mm: {
+        title: "ထီဂဏန်း Smart Search စနစ်", placeholder: "ဂဏန်းရိုက်ရှာပါ (ဥပမာ- 123, T1, B2, SH1, KH5)",
+        updateTitle: "ဂဏန်းအသစ်ထည့်ရန် / ပြင်ရန်", placeholderYear: "ခုနှစ် (1969-2026)",
+        placeholderNum: "၃ လုံးဂဏန်း", addUpdate: "ထည့်မည်/ပြင်မည်", addYear: "ခုနှစ်အသစ်တိုးမည် (+၁  နှစ်)",
+        found: "တွေ့ရှိမှုအကြိမ်ရေ: ", locations: "တွေ့ရှိသည့်နေရာများ: ", helpBtn: "📖 အသုံးပြုနည်းလမ်းညွှန်"
+      },
+      en: {
+        title: "Lottery Smart Search System", placeholder: "Enter code (e.g., 123, T1, B2, SH1, KH5)",
+        updateTitle: "Add / Update Data", placeholderYear: "Year (1969-2026)",
+        placeholderNum: "3-Digit Number", addUpdate: "Add / Update", addYear: "Add New Year (+1 Yr)",
+        found: "Total Found: ", locations: "Locations: ", helpBtn: "📖 User Guide"
+      }
+    };
+    let currentLang = 'mm';
+
+    function saveToLocalStorage() {
+      localStorage.setItem('lotteryRawData', JSON.stringify(rawData));
+      localStorage.setItem('currentMaxYear', currentMaxYear.toString());
+    }
+
+    function renderTable() {
+      const header = document.getElementById('tableHeader');
+      const tbody = document.getElementById('tableBody');
+      const rowSelect = document.getElementById('rowSelect');
+      
+      header.innerHTML = `<th class="sticky-col">Row</th>`;
+      for(let y = 1969; y <= currentMaxYear; y++) {
+        header.innerHTML += `<th>${y}</th>`;
+      }
+      
+      rowSelect.innerHTML = "";
+      tbody.innerHTML = "";
+      let totalYearsCount = currentMaxYear - 1969 + 1;
+      
+      for(let r = 1; r <= 24; r++) {
+        let rid = r.toString().padStart(2, '0');
+        rowSelect.innerHTML += `<option value="${rid}">${rid}</option>`;
+        
+        let rowHTML = `<tr id="row-${rid}"><td class="sticky-col">${rid}</td>`;
+        let dataList = rawData[rid] || [];
+        
+        for(let i = 0; i < totalYearsCount; i++) {
+          let cellVal = dataList[i] !== undefined ? dataList[i] : "";
+          rowHTML += `<td>${cellVal}</td>`;
+        }
+        tbody.innerHTML += rowHTML + `</tr>`;
+      }
+    }
+
+    function matchPattern(val, query) {
+      if (val.length !== 3 || isNaN(val)) return false;
+      let d1 = parseInt(val[0]), d2 = parseInt(val[1]), d3 = parseInt(val[2]);
+      
+      if (query.startsWith('B')) return ((d1 + d2 + d3) % 10) === parseInt(query.substring(1));
+      if (query.startsWith('N')) return ((d2 + d3) % 10) === parseInt(query.substring(1));
+      if (query.startsWith('SH')) return ((d1 + d2) % 10) === parseInt(query.substring(2));
+      if (query.startsWith('KH')) return ((d1 + d3) % 10) === parseInt(query.substring(2));
+      if (query.startsWith('T')) return val[0] === query.substring(1);
+      if (query.startsWith('L')) return val[1] === query.substring(1);
+      if (query.startsWith('P')) return val[2] === query.substring(1);
+      if (!isNaN(query)) return query.length === 3 ? val === query : val.includes(query);
+      return false;
+    }
+
+    function searchData() {
+      const query = document.getElementById('search-bar').value.trim().toUpperCase();
+      const rows = document.querySelectorAll('#tableBody tr');
+      let count = 0, foundLocations = [];
+      
+      document.querySelectorAll('#tableBody td').forEach(td => {
+        if (!td.classList.contains('multi-highlight')) td.style.backgroundColor = '';
+      });
+
+      if (query === "") { document.getElementById('countDisplay').innerHTML = ""; return; }
+
+      rows.forEach(row => {
+        let rowID = row.id.replace('row-', '');
+        for (let colIndex = 1; colIndex < row.cells.length; colIndex++) {
+          let td = row.cells[colIndex];
+          let val = td.innerText.trim();
+          let year = 1969 + (colIndex - 1);
+          
+          if (val !== "" && matchPattern(val, query)) {
+            if (!td.classList.contains('multi-highlight')) td.style.backgroundColor = 'yellow';
+            count++;
+            foundLocations.push(`${rowID}-${year}`);
+          }
+        }
+      });
+      let txt = languages[currentLang];
+      document.getElementById('countDisplay').innerHTML = txt.found + count + (foundLocations.length > 0 ? `<br><small>${txt.locations} ${foundLocations.join(', ')}</small>` : "");
+    }
+
+    const multiColors = ['#E91E63', '#9C27B0', '#00BCD4', '#4CAF50', '#FF9800', '#FFEB3B', '#009688'];
+    let colorIndex = 0;
+
+    function addMultiSearch() {
+      const query = document.getElementById('search-bar').value.trim().toUpperCase();
+      if (query === "") return;
+      const rows = document.querySelectorAll('#tableBody tr');
+      let chosenColor = multiColors[colorIndex % multiColors.length];
+      let hasFound = false;
+
+      rows.forEach(row => {
+        for (let colIndex = 1; colIndex < row.cells.length; colIndex++) {
+          let td = row.cells[colIndex];
+          if (td.innerText.trim() !== "" && matchPattern(td.innerText.trim(), query)) {
+            td.style.backgroundColor = chosenColor;
+            td.classList.add('multi-highlight');
+            hasFound = true;
+          }
+        }
+      });
+      if (hasFound) colorIndex++;
+      document.getElementById('search-bar').value = "";
+    }
+
+    function clearMultiSearch() {
+      document.querySelectorAll('#tableBody td').forEach(td => {
+        td.style.backgroundColor = '';
+        td.classList.remove('multi-highlight');
+      });
+      document.getElementById('countDisplay').innerHTML = "";
+    }
+
+    function updateData() {
+      const row = document.getElementById('rowSelect').value;
+      const year = parseInt(document.getElementById('yearInput').value);
+      const num = document.getElementById('numberInput').value.trim();
+      
+      if(isNaN(year) || year < 1969 || year > currentMaxYear) {
+        alert(`ခုနှစ်ကို 1969 မှ ${currentMaxYear} အတွင်း ရိုက်ပါ`);
+        return;
+      }
+      
+      rawData[row][year - 1969] = num;
+      saveToLocalStorage();
+      renderTable();
+      document.getElementById('numberInput').value = "";
+    }
+
+    function addNewYear() {
+      currentMaxYear++;
+      for (let key in rawData) { rawData[key].push(""); }
+      saveToLocalStorage();
+      renderTable();
+      document.getElementById('yearInput').placeholder = `ခုနှစ် (1969-${currentMaxYear})`;
+      alert(`ခုနှစ်အသစ် ${currentMaxYear} တိုးပြီးပါပြီ။`);
+    }
+
+    function printSplitPDF() {
+      const printContainer = document.getElementById('print-container');
+      printContainer.innerHTML = ""; 
+
+      let table1 = generateSubTable(1969, 1998, "အပိုင်း (၁) - ၁၉၆၉ မှ ၁၉၉၈");
+      let table2 = generateSubTable(1999, currentMaxYear, "အပိုင်း (၂) - ၁၉၉၉ မှ " + currentMaxYear);
+
+      printContainer.appendChild(table1);
+      printContainer.appendChild(table2);
+
+      window.print();
+    }
+
+    function generateSubTable(startYear, endYear, titleText) {
+      let pageDiv = document.createElement('div');
+      pageDiv.className = 'print-page';
+      
+      let title = document.createElement('h3');
+      title.innerText = titleText;
+      title.style.textAlign = "center";
+      pageDiv.appendChild(title);
+
+      let table = document.createElement('table');
+      let thead = document.createElement('thead');
+      let headerRow = document.createElement('tr');
+      headerRow.innerHTML = "<th>Row</th>";
+      
+      for(let y = startYear; y <= endYear; y++) {
+        headerRow.innerHTML += `<th>${y}</th>`;
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      let tbody = document.createElement('tbody');
+      for(let r = 1; r <= 24; r++) {
+        let rid = r.toString().padStart(2, '0');
+        let tr = document.createElement('tr');
+        tr.innerHTML = `<td><b>${rid}</b></td>`;
+        
+        for(let y = startYear; y <= endYear; y++) {
+          let val = rawData[rid][y - 1969] || "";
+          tr.innerHTML += `<td>${val}</td>`;
+        }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      pageDiv.appendChild(table);
+      return pageDiv;
+    }
+
+    function toggleHelp() {
+      const panel = document.getElementById('helpPanel');
+      panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark-theme');
+      document.getElementById('themeBtn').innerText = document.body.classList.contains('dark-theme') ? "☀️ Light Mode" : "🌙 Dark Mode";
+    }
+
+    function toggleLang() {
+      currentLang = (currentLang === 'mm') ? 'en' : 'mm';
+      let txt = languages[currentLang];
+      document.getElementById('mainTitle').innerText = txt.title;
+      document.getElementById('search-bar').placeholder = txt.placeholder;
+      document.getElementById('updateTitle').innerText = txt.updateTitle;
+      document.getElementById('yearInput').placeholder = txt.placeholderYear;
+      document.getElementById('numberInput').placeholder = txt.placeholderNum;
+      document.getElementById('updateBtn').innerText = txt.addUpdate;
+      document.getElementById('addYearBtn').innerText = txt.addYear;
+      document.getElementById('helpToggleBtn').innerText = txt.helpBtn;
+      document.getElementById('langBtn').innerText = (currentLang === 'mm') ? "🇲🇲 EN" : "🇺🇸 MM";
+    }
+
+    let currentMode = 'normal';
+
+    function changeMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeNormal').style.backgroundColor = (mode === 'normal') ? '#4CAF50' : '#555';
+      document.getElementById('modePattern').style.backgroundColor = (mode === 'pattern') ? '#4CAF50' : '#555';
+      handleSearch();
+    }
+
+    function handleSearch() {
+      if (currentMode === 'normal') {
+        searchData();
+      } else {
+        runPatternSearch();
+      }
+    }
+
+    function isSortedMatch(val1, val2) {
+      if (!val1 || !val2 || val1.length !== 3 || val2.length !== 3) return false;
+      let s1 = val1.split('').sort().join('');
+      let s2 = val2.split('').sort().join('');
+      return s1 === s2;
+    }
+
+    function runPatternSearch() {
+      const query = document.getElementById('search-bar').value.trim();
+      if (query.length < 3) return;
+      clearMultiSearch();
+
+      let occurrences = [];
+      for (let r = 1; r <= 24; r++) {
+        let rid = r.toString().padStart(2, '0');
+        rawData[rid].forEach((val, idx) => {
+          if (val === query) occurrences.push({ colIndex: idx });
+        });
+      }
+      if (occurrences.length < 2) return;
+
+      let totalColumns = rawData['01'].length;
+      let lastOccColIndex = Math.max(...occurrences.map(o => o.colIndex));
+      let maxGap = totalColumns - lastOccColIndex - 1;
+
+      const colors = ['#FFFF00', '#90EE90', '#FFD700', '#FFB6C1', '#DDA0DD'];
+
+      for (let n = 1; n <= maxGap; n++) {
+        let color = colors[(n - 1) % colors.length];
+        let occurrencesPatterns = []; 
+
+        occurrences.forEach(occ => {
+          let targetCol = occ.colIndex + n;
+          let patternsInThisOcc = []; 
+          
+          for (let r = 1; r <= 24; r++) {
+            let rid = r.toString().padStart(2, '0');
+            let val = rawData[rid][targetCol];
+            if (val && val.length === 3) {
+              patternsInThisOcc.push(val.split('').sort().join('')); 
+            }
+          }
+          occurrencesPatterns.push(patternsInThisOcc);
+        });
+
+        let commonPatterns = occurrencesPatterns[0];
+        for (let i = 1; i < occurrencesPatterns.length; i++) {
+          commonPatterns = commonPatterns.filter(p => occurrencesPatterns[i].includes(p));
+        }
+
+        if (commonPatterns.length > 0) {
+          commonPatterns.forEach(cp => {
+            occurrences.forEach(occ => {
+              let targetCol = occ.colIndex + n;
+              for (let r = 1; r <= 24; r++) {
+                let rid = r.toString().padStart(2, '0');
+                let val = rawData[rid][targetCol];
+                if (val && val.split('').sort().join('') === cp) {
+                  let td = document.querySelector(`#row-${rid} td:nth-child(${targetCol + 2})`);
+                  if (td) td.style.backgroundColor = color;
+                }
+              }
+            });
+          });
+        }
+      }
+    }
+  </script>
+</body>
+</html>
